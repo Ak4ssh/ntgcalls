@@ -199,9 +199,6 @@ namespace ntgcalls {
     }
 
     void WinCoreDeviceModule::releaseCOMObjects() {
-        if (audioRenderClient.Get()) {
-            audioRenderClient.Reset();
-        }
         if (audioCaptureClient.Get()) {
             audioCaptureClient.Reset();
         }
