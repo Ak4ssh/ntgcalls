@@ -22,35 +22,45 @@ namespace ntgcalls {
                 throw InvalidParams("Invalid video resolution or fps");
             }
         }
+        
+        std::unique_ptr<BaseReader> reader;
+        
         // SUPPORTED INPUT MODES
         switch (desc.mediaSource) {
         case BaseMediaDescription::MediaSource::File:
             RTC_LOG(LS_INFO) << "Using file reader for " << desc.input;
-            return std::make_unique<FileReader>(desc.input, sink);
+            reader = std::make_unique<FileReader>(desc.input, sink);
+            break;
         case BaseMediaDescription::MediaSource::Shell:
 #ifdef BOOST_ENABLED
             RTC_LOG(LS_INFO) << "Using shell reader for " << desc.input;
-            return std::make_unique<ShellReader>(desc.input, sink);
+            reader = std::make_unique<ShellReader>(desc.input, sink);
+            break;
 #else
             BOOST_THROW
 #endif
         case BaseMediaDescription::MediaSource::Device:
             if (const auto* video = dynamic_cast<const VideoDescription*>(&desc)) {
-                return MediaDevice::CreateCameraCapture(*video, sink);
+                reader = MediaDevice::CreateCameraCapture(*video, sink);
+            } else {
+                reader = MediaDevice::CreateDevice<BaseReader>(desc, sink, true);
             }
-            return MediaDevice::CreateDevice<BaseReader>(desc, sink, true);
+            break;
         case BaseMediaDescription::MediaSource::FFmpeg:
             RTC_LOG(LS_ERROR) << "FFmpeg encoder is not yet supported";
             throw FFmpegError("FFmpeg encoder is not yet supported");
         case BaseMediaDescription::MediaSource::Desktop:
             if (const auto* video = dynamic_cast<const VideoDescription*>(&desc)) {
-                return MediaDevice::CreateDesktopCapture(*video, sink);
+                reader = MediaDevice::CreateDesktopCapture(*video, sink);
+                break;
             }
             throw InvalidParams("Invalid media type");
         default:
             RTC_LOG(LS_ERROR) << "Invalid input mode";
             throw InvalidParams("Invalid input mode");
         }
+        
+        return reader;
     }
 
     std::unique_ptr<AudioWriter> MediaSourceFactory::fromAudioOutput(const BaseMediaDescription& desc, BaseSink *sink) {
