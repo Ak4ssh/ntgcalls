@@ -45,7 +45,7 @@ namespace ntgcalls {
         });
         streamManager->addTrack(StreamManager::Mode::Capture, StreamManager::Device::Microphone, connection.get());
         streamManager->addTrack(StreamManager::Mode::Capture, StreamManager::Device::Camera, connection.get());
-        streamManager->addTrack(StreamManager::Mode::Playback, StreamManager::Device::Microphone, connection.get());
+        streamManager->addTrack(StreamManager::Mode::Playback, StreamManager::Device::Speaker, connection.get());
         streamManager->addTrack(StreamManager::Mode::Playback, StreamManager::Device::Camera, connection.get());
         streamManager->addTrack(StreamManager::Mode::Playback, StreamManager::Device::Screen, connection.get());
         RTC_LOG(LS_INFO) << "AVStream settings applied";
