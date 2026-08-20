@@ -338,17 +338,26 @@ namespace wrtc {
 
     void GroupConnection::RtpPacketReceived(const webrtc::RtpPacketReceived& packet) {
         if (isPresentation) {
-            // TODO: Support for system audio
             return;
         }
         const std::string endpoint = std::to_string(packet.Ssrc());
+        bool isAudio = false;
         if (packet.HasExtension(webrtc::kRtpExtensionAudioLevel)) {
             webrtc::AudioLevel audioLevel;
             if (packet.GetExtension<webrtc::AudioLevelExtension>(&audioLevel)) {
                 if (incomingAudioChannels.contains(endpoint)) incomingAudioChannels[endpoint]->updateActivity();
+                isAudio = true;
             }
         }
-        if (packet.PayloadType() == 111) {
+        if (!isAudio) {
+            for (const auto& pt : mediaConfig.audioPayloadTypes) {
+                if (pt.id == packet.PayloadType()) {
+                    isAudio = true;
+                    break;
+                }
+            }
+        }
+        if (isAudio) {
             if (!incomingAudioChannels.contains(endpoint)) {
                 addIncomingAudio(packet.Ssrc(), endpoint);
             } else {
@@ -446,6 +455,11 @@ namespace wrtc {
         if (mtprotoStream) {
             mtprotoStream->enableAudioIncoming(enable);
         } else {
+            if (enable) {
+                addIncomingAudio(0, "0");
+            } else {
+                removeIncomingAudio("0");
+            }
             NativeNetworkInterface::enableAudioIncoming(enable);
         }
     }
