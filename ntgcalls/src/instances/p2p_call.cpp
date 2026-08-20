@@ -209,7 +209,7 @@ namespace ntgcalls {
         });
         streamManager->addTrack(StreamManager::Mode::Capture, StreamManager::Device::Microphone, connection.get());
         streamManager->addTrack(StreamManager::Mode::Capture, StreamManager::Device::Camera, connection.get());
-        streamManager->addTrack(StreamManager::Mode::Playback, StreamManager::Device::Microphone, connection.get());
+        streamManager->addTrack(StreamManager::Mode::Playback, StreamManager::Device::Speaker, connection.get());
         streamManager->addTrack(StreamManager::Mode::Playback, StreamManager::Device::Camera, connection.get());
         streamManager->onUpgrade([weak] (const MediaState mediaState) {
             const auto strong = std::static_pointer_cast<P2PCall>(weak.lock());
