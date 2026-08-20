@@ -9,6 +9,7 @@
 #include <ntgcalls/media/audio_receiver.hpp>
 #include <ntgcalls/media/audio_sink.hpp>
 #include <ntgcalls/media/audio_streamer.hpp>
+#include <ntgcalls/io/audio_mixer.hpp>
 #include <ntgcalls/media/base_receiver.hpp>
 #include <ntgcalls/media/media_source_factory.hpp>
 #include <ntgcalls/media/video_receiver.hpp>
@@ -16,7 +17,19 @@
 #include <ntgcalls/media/video_streamer.hpp>
 #include <rtc_base/logging.h>
 
+#include <ntgcalls/io/threaded_audio_mixer.hpp>
+
 namespace ntgcalls {
+
+namespace {
+    class DummyMixer final: public ThreadedAudioMixer {
+    public:
+        explicit DummyMixer(BaseSink* sink) : BaseIO(sink), ThreadedAudioMixer(sink) {}
+    protected:
+        void write(const bytes::unique_binary& data) override {
+        }
+    };
+}
     StreamManager::StreamManager(wrtc::SafeThread& workerThread): workerThread(workerThread) {}
 
     void StreamManager::close() {
@@ -82,8 +95,106 @@ namespace ntgcalls {
         }
     }
 
+    void StreamManager::setCrossfadeDuration(uint32_t ms) {
+        std::lock_guard lock(mutex);
+        crossfadeDurationMs = ms;
+        for (const auto& [device, reader] : readers) {
+            if (device == Microphone || device == Speaker) {
+                if (auto cfReader = dynamic_cast<CrossfadeReader*>(reader.get())) {
+                    cfReader->setFadeDuration(ms);
+                }
+            }
+        }
+    }
+
+    void StreamManager::queueNextSource(Device device, const MediaDescription& desc) {
+        std::lock_guard lock(mutex);
+        if (!readers.contains(device)) {
+            throw InvalidParams("No active stream to crossfade into");
+        }
+        
+        if (readers.contains(Camera) || desc.camera.has_value()) {
+            throw InvalidParams("Crossfading is only supported for audio-only streams");
+        }
+        
+        auto cfReader = dynamic_cast<CrossfadeReader*>(readers[device].get());
+        if (!cfReader) {
+            throw InvalidParams("Crossfade is not active for this stream");
+        }
+        
+        StreamId id(Capture, device);
+        std::unique_ptr<BaseReader> newReader;
+        if (device == Microphone && desc.microphone) {
+            newReader = MediaSourceFactory::fromInput(*desc.microphone, streams[id].get());
+        } else if (device == Speaker && desc.speaker) {
+            newReader = MediaSourceFactory::fromInput(*desc.speaker, streams[id].get());
+        } else {
+            throw InvalidParams("No valid audio description provided for the given device");
+        }
+        cfReader->queueNext(std::move(newReader));
+    }
+
+
+    void StreamManager::startRecording(const std::string& path) {
+        std::lock_guard lock(mutex);
+        if (recorder && recorder->isRecording()) {
+            throw InvalidParams("Already recording");
+        }
+        
+        recorder = std::make_unique<StreamRecorder>();
+        
+        const StreamId id(Playback, Speaker);
+        if (!streams.contains(id) || !writers.contains(Speaker)) {
+            if (!streams.contains(id)) {
+                streams[id] = std::make_unique<AudioReceiver>();
+            }
+            writers[Speaker] = std::unique_ptr<BaseWriter>(new DummyMixer(streams[id].get()));
+            if (auto mixer = dynamic_cast<AudioMixer*>(writers[Speaker].get())) {
+                std::weak_ptr weak(shared_from_this());
+                mixer->onMixedData([weak](const bytes::unique_binary& data, size_t size) {
+                    if (auto strong = weak.lock()) {
+                        std::lock_guard lock(strong->mutex);
+                        if (strong->recorder && strong->recorder->isRecording()) {
+                            strong->recorder->feedFrame(data, size);
+                        }
+                    }
+                });
+            }
+            AudioDescription desc(
+                BaseMediaDescription::MediaSource::Shell,
+                48000,
+                2,
+                "",
+                false
+            );
+            if (auto receiver = dynamic_cast<AudioReceiver*>(streams[id].get())) {
+                receiver->setConfig(desc);
+                receiver->open();
+            }
+            setupAudioPlaybackCallbacks(id, false);
+            writers[Speaker]->open();
+            if (activeConnection) {
+                optimizeSources(activeConnection);
+            }
+            if (initialized) {
+                checkUpgrade();
+            }
+        }
+        
+        recorder->start(path);
+    }
+
+    void StreamManager::stopRecording() {
+        std::lock_guard lock(mutex);
+        if (recorder) {
+            recorder->stop();
+            recorder.reset();
+        }
+    }
+
     void StreamManager::optimizeSources(wrtc::NetworkInterface* pc) {
-        pc->enableAudioIncoming(writers.contains(Microphone) || externalWriters.contains(Microphone));
+        activeConnection = pc;
+        pc->enableAudioIncoming(writers.contains(Speaker) || externalWriters.contains(Speaker));
         pc->enableVideoIncoming(writers.contains(Camera) || externalWriters.contains(Camera), false);
         pc->enableVideoIncoming(writers.contains(Screen) || externalWriters.contains(Screen), true);
         initialized = pc->getConnectionMode() != wrtc::ConnectionMode::None;
@@ -293,11 +404,8 @@ namespace ntgcalls {
             readers.erase(device);
         }
         if (readerToDestroy) {
-            mutex.unlock();
             readerToDestroy->onData(nullptr);
             readerToDestroy->onEof(nullptr);
-            readerToDestroy.reset();
-            mutex.lock();
         }
         externalReaders.erase(device);
         {
@@ -413,9 +521,8 @@ namespace ntgcalls {
         RTC_LOG(LS_INFO) << "Reconfiguring CAPTURE for device " << device << " reason=" << static_cast<int>(reason);
         const bool isShared   = desc.mediaSource == DescriptionType::MediaSource::Device;
 
-        removeReader(device);
-
         if (isExternal) {
+            removeReader(device);
             externalReaders.insert(device);
             {
                 std::lock_guard syncLock(syncMutex);
@@ -424,7 +531,21 @@ namespace ntgcalls {
             return;
         }
 
-        readers[device] = MediaSourceFactory::fromInput(desc, streams[id].get());
+        auto baseReader = MediaSourceFactory::fromInput(desc, streams[id].get());
+        if (device == Microphone || device == Speaker) {
+            if (auto existingCfReader = dynamic_cast<CrossfadeReader*>(readers[device].get())) {
+                existingCfReader->setFadeDuration(crossfadeDurationMs);
+                existingCfReader->queueNext(std::move(baseReader));
+                return;
+            }
+            removeReader(device);
+            auto cfReader = std::make_unique<CrossfadeReader>(streams[id].get(), crossfadeDurationMs);
+            cfReader->setCurrent(std::move(baseReader));
+            readers[device] = std::move(cfReader);
+        } else {
+            removeReader(device);
+            readers[device] = std::move(baseReader);
+        }
 
         setupCaptureCallbacks(id, streamType, isShared);
 
@@ -516,7 +637,19 @@ namespace ntgcalls {
         if (streamType == Audio) {
             if (!isExternal) {
                 writers.erase(device);
-                writers[device] = MediaSourceFactory::fromAudioOutput(desc, streams[id].get());
+                auto writer = MediaSourceFactory::fromAudioOutput(desc, streams[id].get());
+                if (auto mixer = dynamic_cast<AudioMixer*>(writer.get())) {
+                    std::weak_ptr weak(shared_from_this());
+                    mixer->onMixedData([weak](const bytes::unique_binary& data, size_t size) {
+                        if (auto strong = weak.lock()) {
+                            std::lock_guard lock(strong->mutex);
+                            if (strong->recorder && strong->recorder->isRecording()) {
+                                strong->recorder->feedFrame(data, size);
+                            }
+                        }
+                    });
+                }
+                writers[device] = std::move(writer);
             }
             setupAudioPlaybackCallbacks(id, isExternal);
         } else if (isExternal) {
@@ -560,6 +693,8 @@ namespace ntgcalls {
                 if (strong->writers.contains(id.second)) {
                     if (const auto audioWriter = dynamic_cast<AudioWriter*>(strong->writers[id.second].get())) {
                         audioWriter->sendFrames(frames);
+                    }
+                    if (strong->recorder && strong->recorder->isRecording()) {
                     }
                 }
             }
