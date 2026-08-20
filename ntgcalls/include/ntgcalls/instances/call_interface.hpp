@@ -57,7 +57,7 @@ namespace ntgcalls {
 
         virtual void setStreamSources(StreamManager::Mode mode, const MediaDescription& config) const;
 
-        void setCrossfadeDuration(uint32_t ms) const;
+        void setCrossfadeDuration(uint32_t ms) const; //trying rn
 
         void queueNextSource(StreamManager::Device device, const MediaDescription& desc) const;
 
