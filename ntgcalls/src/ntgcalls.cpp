@@ -454,4 +454,4 @@ namespace ntgcalls {
             MediaDevice::GetScreenDevices()
         };
     }
-} // ntgcalls
+}
