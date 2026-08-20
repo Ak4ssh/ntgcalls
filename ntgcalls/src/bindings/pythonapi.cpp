@@ -23,6 +23,10 @@ PYBIND11_MODULE(ntgcalls, m, py::mod_gil_not_used()) {
     wrapper.def("init_presentation", &ntgcalls::NTgCalls::initPresentation, py::arg("chat_id"));
     wrapper.def("connect", &ntgcalls::NTgCalls::connect, py::arg("chat_id"), py::arg("params"), py::arg("is_presentation"));
     wrapper.def("set_stream_sources", &ntgcalls::NTgCalls::setStreamSources, py::arg("chat_id"), py::arg("direction"), py::arg("media"));
+    wrapper.def("set_crossfade_duration", &ntgcalls::NTgCalls::setCrossfadeDuration, py::arg("chat_id"), py::arg("ms"));
+    wrapper.def("queue_next_source", &ntgcalls::NTgCalls::queueNextSource, py::arg("chat_id"), py::arg("device"), py::arg("desc"));
+    wrapper.def("start_recording", &ntgcalls::NTgCalls::startRecording, py::arg("chat_id"), py::arg("path"));
+    wrapper.def("stop_recording", &ntgcalls::NTgCalls::stopRecording, py::arg("chat_id"));
     wrapper.def("add_incoming_video", &ntgcalls::NTgCalls::addIncomingVideo, py::arg("chat_id"), py::arg("endpoint"), py::arg("ssrc_group"));
     wrapper.def("remove_incoming_video", &ntgcalls::NTgCalls::removeIncomingVideo, py::arg("chat_id"), py::arg("endpoint"));
     wrapper.def("pause", &ntgcalls::NTgCalls::pause, py::arg("chat_id"));
