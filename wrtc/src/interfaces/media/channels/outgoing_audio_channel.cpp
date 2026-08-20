@@ -39,6 +39,8 @@ namespace wrtc {
                 webrtc::Codec codec = webrtc::CreateAudioCodec(static_cast<int>(id), name, static_cast<int>(clockrate), channels);
                 codec.SetParam(webrtc::kCodecParamUseInbandFec, 1);
                 codec.SetParam(webrtc::kCodecParamPTime, 60);
+                codec.SetParam("stereo", "1");
+                codec.SetParam("sprop-stereo", "1");
                 for (const auto &[type, subtype] : feedbackTypes) {
                     codec.AddFeedbackParam(webrtc::FeedbackParam(type, subtype));
                 }
