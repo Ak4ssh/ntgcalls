@@ -138,7 +138,8 @@ namespace ntgcalls {
 
     ASYNC_RETURN(bytes::vector) NTgCalls::initExchange(const int64_t userId, const DhConfig& dhConfig, const std::optional<BYTES(bytes::vector)> &g_a_hash) {
         SMART_ASYNC(this, userId, dhConfig, g_a_hash = CPP_BYTES(g_a_hash, bytes::vector))
-        const auto result = SafeCall<P2PCall>(safeConnection(userId))->initExchange(dhConfig, g_a_hash);
+        const auto conn = safeConnection(userId);
+        const auto result = SafeCall<P2PCall>(conn.get())->initExchange(dhConfig, g_a_hash);
         THREAD_SAFE
         return CAST_BYTES(result);
         END_THREAD_SAFE
@@ -147,19 +148,22 @@ namespace ntgcalls {
 
     ASYNC_RETURN(AuthParams) NTgCalls::exchangeKeys(const int64_t userId, const BYTES(bytes::vector) &g_a_or_b, const int64_t fingerprint) {
         SMART_ASYNC(this, userId, g_a_or_b = CPP_BYTES(g_a_or_b, bytes::vector), fingerprint)
-        return SafeCall<P2PCall>(safeConnection(userId))->exchangeKeys(g_a_or_b, fingerprint);
+        auto conn = safeConnection(userId);
+        return SafeCall<P2PCall>(conn.get())->exchangeKeys(g_a_or_b, fingerprint);
         END_ASYNC
     }
 
     ASYNC_RETURN(void) NTgCalls::skipExchange(const int64_t userId, const BYTES(bytes::vector) &encryptionKey, const bool isOutgoing) {
         SMART_ASYNC(this, userId, encryptionKey = CPP_BYTES(encryptionKey, bytes::vector), isOutgoing)
-        SafeCall<P2PCall>(safeConnection(userId))->skipExchange(encryptionKey, isOutgoing);
+        auto conn = safeConnection(userId);
+        SafeCall<P2PCall>(conn.get())->skipExchange(encryptionKey, isOutgoing);
         END_ASYNC
     }
 
     ASYNC_RETURN(void) NTgCalls::connectP2P(const int64_t userId, const std::vector<RTCServer>& servers, const std::vector<std::string>& versions, const bool p2pAllowed) {
         SMART_ASYNC(this, userId, servers, versions, p2pAllowed)
-        SafeCall<P2PCall>(safeConnection(userId))->connect(servers, versions, p2pAllowed);
+        auto conn = safeConnection(userId);
+        SafeCall<P2PCall>(conn.get())->connect(servers, versions, p2pAllowed);
         END_ASYNC
     }
 
@@ -175,25 +179,29 @@ namespace ntgcalls {
 
     ASYNC_RETURN(std::string) NTgCalls::initPresentation(const int64_t chatId) {
         SMART_ASYNC(this, chatId)
-        return SafeCall<GroupCall>(safeConnection(chatId))->initPresentation();
+        auto conn = safeConnection(chatId);
+        return SafeCall<GroupCall>(conn.get())->initPresentation();
         END_ASYNC
     }
 
     ASYNC_RETURN(void) NTgCalls::connect(const int64_t chatId, const std::string& params, const bool isPresentation) {
         SMART_ASYNC(this, chatId, params, isPresentation)
-        SafeCall<GroupCall>(safeConnection(chatId))->connect(params, isPresentation);
+        auto conn = safeConnection(chatId);
+        SafeCall<GroupCall>(conn.get())->connect(params, isPresentation);
         END_ASYNC
     }
 
     ASYNC_RETURN(uint32_t) NTgCalls::addIncomingVideo(const int64_t chatId, const std::string& endpoint, const std::vector<wrtc::SsrcGroup>& ssrcGroups) {
         SMART_ASYNC(this, chatId, endpoint, ssrcGroups)
-        return SafeCall<GroupCall>(safeConnection(chatId))->addIncomingVideo(endpoint, ssrcGroups);
+        auto conn = safeConnection(chatId);
+        return SafeCall<GroupCall>(conn.get())->addIncomingVideo(endpoint, ssrcGroups);
         END_ASYNC
     }
 
     ASYNC_RETURN(bool) NTgCalls::removeIncomingVideo(const int64_t chatId, const std::string& endpoint) {
         SMART_ASYNC(this, chatId, endpoint)
-        return SafeCall<GroupCall>(safeConnection(chatId))->removeIncomingVideo(endpoint);
+        auto conn = safeConnection(chatId);
+        return SafeCall<GroupCall>(conn.get())->removeIncomingVideo(endpoint);
         END_ASYNC
     }
 
@@ -235,7 +243,8 @@ namespace ntgcalls {
 
     ASYNC_RETURN(void) NTgCalls::stopPresentation(const int64_t chatId) {
         SMART_ASYNC(this, chatId)
-        SafeCall<GroupCall>(safeConnection(chatId))->stopPresentation(true);
+        auto conn = safeConnection(chatId);
+        SafeCall<GroupCall>(conn.get())->stopPresentation(true);
         END_ASYNC
     }
 
@@ -281,19 +290,22 @@ namespace ntgcalls {
 
     ASYNC_RETURN(void) NTgCalls::sendBroadcastTimestamp(int64_t chatId, int64_t timestamp) {
         SMART_ASYNC(this, chatId, timestamp)
-        SafeCall<GroupCall>(safeConnection(chatId))->sendBroadcastTimestamp(timestamp);
+        auto conn = safeConnection(chatId);
+        SafeCall<GroupCall>(conn.get())->sendBroadcastTimestamp(timestamp);
         END_ASYNC
     }
 
     ASYNC_RETURN(void) NTgCalls::sendBroadcastPart(int64_t chatId, int64_t segmentId, int32_t partId, wrtc::MediaSegment::Part::Status status, const bool qualityUpdate, const std::optional<BYTES(bytes::binary)> &data) {
         SMART_ASYNC(this, chatId, segmentId, partId, status, qualityUpdate, data = CPP_BYTES(data, bytes::binary))
-        SafeCall<GroupCall>(safeConnection(chatId))->sendBroadcastPart(segmentId, partId, status, qualityUpdate, data);
+        auto conn = safeConnection(chatId);
+        SafeCall<GroupCall>(conn.get())->sendBroadcastPart(segmentId, partId, status, qualityUpdate, data);
         END_ASYNC
     }
 
     ASYNC_RETURN(void) NTgCalls::sendSignalingData(const int64_t chatId, const BYTES(bytes::binary) &msgKey) {
         SMART_ASYNC(this, chatId, msgKey = CPP_BYTES(msgKey, bytes::binary))
-        SafeCall<P2PCall>(safeConnection(chatId))->sendSignalingData(msgKey);
+        auto conn = safeConnection(chatId);
+        SafeCall<P2PCall>(conn.get())->sendSignalingData(msgKey);
         END_ASYNC
     }
 
@@ -362,12 +374,12 @@ namespace ntgcalls {
         return connections.contains(chatId);
     }
 
-    CallInterface* NTgCalls::safeConnection(const int64_t chatId) {
+    std::shared_ptr<CallInterface> NTgCalls::safeConnection(const int64_t chatId) {
         std::lock_guard lock(mutex);
         if (!exists(chatId)) {
             THROW_CONNECTION_NOT_FOUND(chatId)
         }
-        return connections[chatId].get();
+        return connections[chatId];
     }
 
     Protocol NTgCalls::getProtocol() {
@@ -395,6 +407,30 @@ namespace ntgcalls {
             return derivedCall;
         }
         throw ConnectionError("Invalid call type");
+    }
+
+    ASYNC_RETURN(void) NTgCalls::setCrossfadeDuration(const int64_t chatId, const uint32_t ms) {
+        SMART_ASYNC(this, chatId, ms)
+        safeConnection(chatId)->setCrossfadeDuration(ms);
+        END_ASYNC
+    }
+
+    ASYNC_RETURN(void) NTgCalls::queueNextSource(const int64_t chatId, const StreamManager::Device device, const MediaDescription& desc) {
+        SMART_ASYNC(this, chatId, device, desc)
+        safeConnection(chatId)->queueNextSource(device, desc);
+        END_ASYNC
+    }
+
+    ASYNC_RETURN(void) NTgCalls::startRecording(const int64_t chatId, const std::string& path) {
+        SMART_ASYNC(this, chatId, path)
+        safeConnection(chatId)->startRecording(path);
+        END_ASYNC
+    }
+
+    ASYNC_RETURN(void) NTgCalls::stopRecording(const int64_t chatId) {
+        SMART_ASYNC(this, chatId)
+        safeConnection(chatId)->stopRecording();
+        END_ASYNC
     }
 
     std::string NTgCalls::ping() {
