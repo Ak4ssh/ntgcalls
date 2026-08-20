@@ -11,10 +11,13 @@ namespace ntgcalls {
 
     class AudioMixer: public AudioWriter {
     protected:
+        std::function<void(const bytes::unique_binary&, size_t)> mixedCallback;
         virtual void onData(bytes::unique_binary data) = 0;
 
     public:
         explicit AudioMixer(BaseSink* sink);
+
+        void onMixedData(const std::function<void(const bytes::unique_binary&, size_t)>& callback);
 
         void sendFrames(const std::map<uint32_t, std::pair<bytes::unique_binary, size_t>>& frames) override;
     };
