@@ -149,4 +149,30 @@ namespace ntgcalls {
         }
         return StreamManager::Status::Idling;
     }
+
+    void CallInterface::setCrossfadeDuration(uint32_t ms) const {
+        if (streamManager) streamManager->setCrossfadeDuration(ms);
+    }
+
+    void CallInterface::queueNextSource(StreamManager::Device device, const MediaDescription& desc) const {
+        if (streamManager) streamManager->queueNextSource(device, desc);
+    }
+
+    void CallInterface::startRecording(const std::string& path) const {
+        if (streamManager) {
+            streamManager->startRecording(path);
+            if (connection) {
+                streamManager->optimizeSources(connection.get());
+            }
+        }
+    }
+
+    void CallInterface::stopRecording() const {
+        if (streamManager) {
+            streamManager->stopRecording();
+            if (connection) {
+                streamManager->optimizeSources(connection.get());
+            }
+        }
+    }
 } // ntgcalls
