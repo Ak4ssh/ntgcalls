@@ -45,7 +45,6 @@ namespace wrtc {
                 codec.AddFeedbackParam(webrtc::FeedbackParam(type, subtype));
             }
             codecs.push_back(std::move(codec));
-            break;
         }
 
         const auto outgoingDescription = std::make_unique<webrtc::AudioContentDescription>();
@@ -85,7 +84,11 @@ namespace wrtc {
                     remoteAudio->sendData(std::move(frame));
                 }
             });
-            channel->voice_media_receive_channel()->SetRawAudioSink(_ssrc, std::move(rawSink));
+            if (_ssrc == 0) {
+                channel->voice_media_receive_channel()->SetDefaultRawAudioSink(std::move(rawSink));
+            } else {
+                channel->voice_media_receive_channel()->SetRawAudioSink(_ssrc, std::move(rawSink));
+            }
         });
     }
 
