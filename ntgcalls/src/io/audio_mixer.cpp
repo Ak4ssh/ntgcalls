@@ -9,6 +9,10 @@
 namespace ntgcalls {
     AudioMixer::AudioMixer(BaseSink* sink): AudioWriter(sink) {}
 
+    void AudioMixer::onMixedData(const std::function<void(const bytes::unique_binary&, size_t)>& callback) {
+        mixedCallback = callback;
+    }
+
     void AudioMixer::sendFrames(const std::map<uint32_t, std::pair<bytes::unique_binary, size_t>>& frames) {
         if (!sink) return;
         const auto frameSize = sink->frameSize();
@@ -24,13 +28,18 @@ namespace ntgcalls {
             }
 
             // Audio normalization
-            mixedSample /= static_cast<int32_t>(numSources);
+            if (numSources > 0) {
+                mixedSample /= static_cast<int32_t>(numSources);
+            }
 
             // Clipping to a 16-bit signed integer range
             const auto mixedOutputSamples = reinterpret_cast<int16_t*>(mixedOutput.get());
             mixedOutputSamples[i] = static_cast<int16_t>(std::clamp(mixedSample, -32768, 32767));
         }
 
+        if (mixedCallback) {
+            mixedCallback(mixedOutput, frameSize);
+        }
         onData(std::move(mixedOutput));
     }
 } // ntgcalls
