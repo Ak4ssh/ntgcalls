@@ -57,6 +57,14 @@ namespace ntgcalls {
 
         virtual void setStreamSources(StreamManager::Mode mode, const MediaDescription& config) const;
 
+        void setCrossfadeDuration(uint32_t ms) const;
+
+        void queueNextSource(StreamManager::Device device, const MediaDescription& desc) const;
+
+        void startRecording(const std::string& path) const;
+
+        void stopRecording() const;
+
         void onStreamEnd(const std::function<void(StreamManager::Type, StreamManager::Device)> &callback) const;
 
         void onConnectionChange(const std::function<void(NetworkInfo)> &callback);
