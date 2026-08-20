@@ -47,7 +47,7 @@ namespace ntgcalls {
 
         bool exists(int64_t chatId) const;
 
-        CallInterface* safeConnection(int64_t chatId);
+        std::shared_ptr<CallInterface> safeConnection(int64_t chatId);
 
         void setupListeners(int64_t chatId);
 
@@ -138,6 +138,14 @@ namespace ntgcalls {
         ASYNC_RETURN(void) sendExternalFrame(int64_t chatId, StreamManager::Device device, const BYTES(bytes::binary) &data, wrtc::FrameData frameData);
 
         ASYNC_RETURN(std::map<int64_t, StreamManager::CallInfo>) calls();
+
+        ASYNC_RETURN(void) setCrossfadeDuration(int64_t chatId, uint32_t ms);
+
+        ASYNC_RETURN(void) queueNextSource(int64_t chatId, StreamManager::Device device, const MediaDescription& desc);
+
+        ASYNC_RETURN(void) startRecording(const int64_t chatId, const std::string& path);
+
+        ASYNC_RETURN(void) stopRecording(int64_t chatId);
     };
 
 } // ntgcalls
